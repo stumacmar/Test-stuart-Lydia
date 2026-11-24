@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Twenty Years in Weeks</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="A live countdown of the weeks between today and twenty years from today, drawn as squares.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one centred column. Live countdown hero → view switcher + start date → the grid (one square per unit, one row per year) → what the twenty years still hold. */
+:root {
+  --bg: #f3f2f8;
+  --surface: #ffffff;
+  --fg: #181a2f;
+  --muted: #5f6280;
+  --line: rgba(24, 26, 47, .12);
+  --spent: rgba(24, 26, 47, .09);
+  --now: #181a2f;
+  --r1: #d9406b;   /* dawn rose   — years 1–5   */
+  --r2: #e48a2c;   /* noon amber  — years 6–10  */
+  --r3: #1f9c8b;   /* dusk teal   — years 11–15 */
+  --r4: #4659d4;   /* night indigo — years 16–20 */
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0d1b; --surface: #13162c; --fg: #eceaf7; --muted: #9a9dbb;
+    --line: rgba(236, 234, 247, .12); --spent: rgba(236, 234, 247, .08); --now: #ffffff;
+    --r1: #ff6b8f; --r2: #ffb257; --r3: #45d3bd; --r4: #7d8dff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0d1b; --surface: #13162c; --fg: #eceaf7; --muted: #9a9dbb;
+  --line: rgba(236, 234, 247, .12); --spent: rgba(236, 234, 247, .08); --now: #ffffff;
+  --r1: #ff6b8f; --r2: #ffb257; --r3: #45d3bd; --r4: #7d8dff;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* ---------- Hero ---------- */
+.hero {
+  position: relative;
+  isolation: isolate;
+  margin-top: calc(-1 * env(safe-area-inset-top, 0px));
+  padding-top: calc(env(safe-area-inset-top, 0px) + clamp(2.5rem, 7vw, 5rem));
+  padding-bottom: clamp(2rem, 5vw, 3.5rem);
+  overflow: hidden;
+}
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: -20% -10% 0;
+  z-index: -1;
+  background:
+    radial-gradient(40% 55% at 18% 30%, color-mix(in srgb, var(--r1) 22%, transparent), transparent 70%),
+    radial-gradient(35% 50% at 52% 10%, color-mix(in srgb, var(--r2) 18%, transparent), transparent 70%),
+    radial-gradient(40% 60% at 85% 40%, color-mix(in srgb, var(--r4) 22%, transparent), transparent 70%);
+  filter: blur(20px);
+}
+.eyebrow {
+  font-family: var(--mono);
+  font-size: .78rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem .9rem;
+  align-items: center;
+}
+.eyebrow .arrow { opacity: .6; }
+.big {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(5.5rem, 21vw, 13.5rem);
+  line-height: .86;
+  letter-spacing: -.045em;
+  margin: 1.2rem 0 .4rem;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(100deg, var(--r1), var(--r2) 38%, var(--r3) 68%, var(--r4));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  width: fit-content;
+  max-width: 100%;
+}
+.big-label {
+  font-family: var(--display);
+  font-size: clamp(1.35rem, 3.6vw, 2.2rem);
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  margin: 0;
+  text-wrap: balance;
+}
+.ticker {
+  margin-top: 1rem;
+  font-family: var(--mono);
+  font-size: clamp(.95rem, 2.4vw, 1.15rem);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.ticker b { color: var(--fg); font-weight: 500; }
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: clamp(2rem, 5vw, 3rem);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.stat { padding: 1rem .25rem 1rem 0; min-width: 0; }
+.stat + .stat { padding-left: 1rem; border-left: 1px solid var(--line); }
+.stat .n {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(1.3rem, 3.2vw, 2rem);
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.stat .l {
+  font-family: var(--mono);
+  font-size: .72rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: .3rem;
+}
+@media (max-width: 640px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat + .stat { padding-left: 0; border-left: 0; }
+  .stat { border-bottom: 1px solid var(--line); }
+  .stat:nth-child(even) { padding-left: 1rem; border-left: 1px solid var(--line); }
+  .stat:last-child { grid-column: 1 / -1; border-bottom: 0; }
+}
+
+.progress { margin-top: 1.4rem; }
+.progress-top {
+  display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  font-family: var(--mono); font-size: .8rem; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.progress-top b { color: var(--fg); font-weight: 500; }
+.bar {
+  margin-top: .55rem;
+  height: 8px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--r1), var(--r2) 38%, var(--r3) 68%, var(--r4));
+  position: relative;
+  overflow: hidden;
+}
+.bar i {
+  position: absolute; inset: 0 auto 0 0;
+  background: var(--spent);
+  background-color: color-mix(in srgb, var(--bg) 78%, transparent);
+  border-right: 2px solid var(--now);
+  min-width: 2px;
+}
+
+/* ---------- Controls ---------- */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: end;
+  justify-content: space-between;
+  margin: clamp(1.5rem, 4vw, 2.5rem) 0 1rem;
+}
+.tabs {
+  display: inline-flex;
+  padding: 4px;
+  gap: 2px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  max-width: 100%;
+  overflow-x: auto;
+}
+.tabs button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 500 .95rem/1 var(--body);
+  padding: .7rem 1.05rem;
+  border-radius: 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .2s, color .2s;
+}
+.tabs button:hover { color: var(--fg); }
+.tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
+.tabs button .c { font-family: var(--mono); font-size: .72rem; opacity: .7; margin-left: .35rem; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--r4); outline-offset: 2px; }
+
+.startbox { display: flex; gap: .6rem; align-items: end; flex-wrap: wrap; }
+.startbox label {
+  display: grid; gap: .3rem;
+  font-family: var(--mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+}
+.startbox input {
+  font: 500 .95rem var(--body);
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: .55rem .7rem;
+  min-height: 42px;
+}
+.ghost {
+  appearance: none;
+  font: 500 .9rem var(--body);
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: .6rem .9rem;
+  min-height: 42px;
+  cursor: pointer;
+}
+.ghost:hover { border-color: var(--muted); }
+
+/* ---------- Grid ---------- */
+.board {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: clamp(14px, 3vw, 32px);
+  box-shadow: 0 30px 80px -40px color-mix(in srgb, var(--r4) 35%, transparent);
+}
+.board-head {
+  display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: .5rem 1rem;
+  margin-bottom: 1.1rem;
+}
+.board-head h2 {
+  font-family: var(--display); font-weight: 600; font-size: clamp(1.15rem, 2.6vw, 1.5rem);
+  letter-spacing: -.015em; margin: 0; text-wrap: balance;
+}
+.board-head p { margin: 0; color: var(--muted); font-size: .92rem; }
+.board-head p b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.stage { position: relative; width: 100%; }
+canvas { display: block; width: 100%; touch-action: manipulation; }
+.pulse {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 30%;
+  box-shadow: 0 0 0 2px var(--now);
+  animation: pulse 1.8s ease-out infinite;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 1.5px var(--now), 0 0 0 0 color-mix(in srgb, var(--r1) 70%, transparent); }
+  100% { box-shadow: 0 0 0 1.5px var(--now), 0 0 0 14px color-mix(in srgb, var(--r1) 0%, transparent); }
+}
+.tip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: var(--fg);
+  color: var(--bg);
+  border-radius: 10px;
+  padding: .55rem .75rem;
+  font-size: .82rem;
+  line-height: 1.35;
+  max-width: 240px;
+  box-shadow: 0 10px 30px -10px rgba(0,0,0,.4);
+  transform: translate(-50%, calc(-100% - 12px));
+  white-space: nowrap;
+}
+.tip strong { display: block; font-family: var(--display); font-weight: 600; font-size: .95rem; }
+.tip span { opacity: .75; font-family: var(--mono); font-size: .72rem; }
+
+.legend {
+  display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin-top: 1.2rem;
+  font-size: .82rem; color: var(--muted);
+}
+.legend span { display: inline-flex; align-items: center; gap: .5rem; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.sw.spent { background: var(--spent); box-shadow: inset 0 0 0 1px var(--line); }
+.sw.now { background: var(--now); box-shadow: 0 0 0 2px color-mix(in srgb, var(--r1) 50%, transparent); }
+.sw.ahead { width: 46px; background: linear-gradient(90deg, var(--r1), var(--r2), var(--r3), var(--r4)); }
+
+/* ---------- Facts ---------- */
+.facts-head { margin: clamp(2.5rem, 6vw, 4rem) 0 1.2rem; }
+.facts-head h2 {
+  font-family: var(--display); font-weight: 600; font-size: clamp(1.5rem, 4vw, 2.4rem);
+  letter-spacing: -.025em; line-height: 1.1; margin: 0; text-wrap: balance;
+}
+.facts-head p { color: var(--muted); margin: .5rem 0 0; max-width: 60ch; }
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--line);
+}
+.fact { padding: 1.3rem 1.2rem 1.3rem 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.fact:not(:nth-child(3n+1)) { padding-left: 1.2rem; border-left: 1px solid var(--line); }
+.fact .n {
+  font-family: var(--display); font-weight: 800; font-size: clamp(1.8rem, 4.5vw, 2.6rem);
+  letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums;
+}
+.fact:nth-child(1) .n { color: var(--r1); }
+.fact:nth-child(2) .n { color: color-mix(in srgb, var(--r1) 50%, var(--r2)); }
+.fact:nth-child(3) .n { color: var(--r2); }
+.fact:nth-child(4) .n { color: var(--r3); }
+.fact:nth-child(5) .n { color: color-mix(in srgb, var(--r3) 50%, var(--r4)); }
+.fact:nth-child(6) .n { color: var(--r4); }
+.fact .t { font-weight: 600; margin-top: .45rem; }
+.fact .d { color: var(--muted); font-size: .88rem; margin-top: .15rem; }
+@media (max-width: 760px) {
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fact:not(:nth-child(3n+1)) { padding-left: 0; border-left: 0; }
+  .fact:nth-child(even) { padding-left: 1rem; border-left: 1px solid var(--line); }
+}
+
+footer {
+  margin: clamp(2.5rem, 6vw, 4rem) 0 0;
+  padding-block: 1.5rem 3rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .85rem;
+  max-width: 70ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse { animation: none; }
+  .tabs button { transition: none; }
+}
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">
+      <span id="fromLbl">From today</span><span class="arrow">→</span><span id="toLbl">to twenty years on</span>
+    </div>
+    <div class="big" id="bigWeeks" aria-live="off">1,043</div>
+    <p class="big-label">weeks left of the next twenty years</p>
+    <div class="ticker" id="ticker">and <b>0</b> days · <b>00</b>h <b>00</b>m <b>00</b>s</div>
+
+    <div class="stats" aria-label="Time remaining">
+      <div class="stat"><div class="n" id="sYears">20.00</div><div class="l">Years</div></div>
+      <div class="stat"><div class="n" id="sMonths">240</div><div class="l">Months</div></div>
+      <div class="stat"><div class="n" id="sWeeks">1,043</div><div class="l">Weeks</div></div>
+      <div class="stat"><div class="n" id="sDays">7,305</div><div class="l">Days</div></div>
+      <div class="stat"><div class="n" id="sHours">175,320</div><div class="l">Hours</div></div>
+    </div>
+
+    <div class="progress">
+      <div class="progress-top">
+        <span><b id="pct">0.00000%</b> of the twenty years has passed</span>
+        <span id="pctDays">Day 1 of 7,305</span>
+      </div>
+      <div class="bar" role="progressbar" aria-label="Elapsed" aria-valuemin="0" aria-valuemax="100" id="bar"><i id="barFill" style="width:0%"></i></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="controls">
+    <div class="tabs" role="tablist" aria-label="Square size">
+      <button role="tab" id="tab-years" data-view="years" aria-selected="false">Years<span class="c">20</span></button>
+      <button role="tab" id="tab-months" data-view="months" aria-selected="false">Months<span class="c">240</span></button>
+      <button role="tab" id="tab-weeks" data-view="weeks" aria-selected="true">Weeks<span class="c" id="cWeeks">1,040</span></button>
+      <button role="tab" id="tab-days" data-view="days" aria-selected="false">Days<span class="c" id="cDays">7,305</span></button>
+    </div>
+    <div class="startbox">
+      <label for="startInput">Counting from
+        <input type="date" id="startInput">
+      </label>
+      <button class="ghost" id="resetBtn" type="button">Start from today</button>
+    </div>
+  </div>
+
+  <section class="board" aria-labelledby="boardTitle">
+    <div class="board-head">
+      <h2 id="boardTitle">One square for every week</h2>
+      <p id="boardNote"><b>1,040</b> squares · <b>1,043</b> still ahead</p>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="grid" role="img" aria-label="Grid of squares, one per week, one row per year"></canvas>
+      <div class="pulse" id="pulse" hidden></div>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+    <div class="legend">
+      <span><i class="sw spent"></i>Behind you</span>
+      <span><i class="sw now"></i>You are here</span>
+      <span><i class="sw ahead"></i>Still ahead, coloured from year 1 to year 20</span>
+    </div>
+  </section>
+
+  <div class="facts-head">
+    <h2>What the twenty years still hold</h2>
+    <p id="factsSub">Counted day by day from today to the final day.</p>
+  </div>
+  <div class="facts" id="facts"></div>
+
+  <footer>
+    The layout follows the "life in weeks" calendar popularised by Tim Urban's essay <em>Your Life in Weeks</em> and the memento mori apps built on it:
+    one square per week and one row per year, with spent time greyed out and the present week marked. Switch to years, months or days to change the scale.
+    Hover or tap any square for its dates. Your start date is remembered in this browser only.
+  </footer>
+</main>
+
+<script>
+(() => {
+  const DAY = 864e5, WEEK = 7 * DAY, YEARS = 20;
+  const nf = n => Math.max(0, n).toLocaleString('en-GB');
+  const dLong = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const dShort = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+  const mName = new Intl.DateTimeFormat('en-GB', { month: 'short' });
+  const mid = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const addMonths = (d, n) => {
+    const x = new Date(d.getFullYear(), d.getMonth() + n, 1);
+    const dim = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate();
+    x.setDate(Math.min(d.getDate(), dim));
+    return x;
+  };
+  const diffDays = (a, b) => Math.round((mid(b) - mid(a)) / DAY);
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const $ = id => document.getElementById(id);
+
+  const canvas = $('grid'), ctx = canvas.getContext('2d'), stage = $('stage');
+  const pulse = $('pulse'), tip = $('tip');
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let start, end, totalDays, years = [], units = [], view = 'weeks', today = mid(new Date());
+  let palette = {}, rects = [], anim = null;
+
+  function readStart() {
+    try {
+      const v = localStorage.getItem('twenty-years-start');
+      if (v) { const [y, m, d] = v.split('-').map(Number); if (y && m && d) return new Date(y, m - 1, d); }
+    } catch (e) {}
+    return mid(new Date());
+  }
+  function saveStart() { try { localStorage.setItem('twenty-years-start', iso(start)); } catch (e) {} }
+  function clearStart() { try { localStorage.removeItem('twenty-years-start'); } catch (e) {} }
+
+  try { const v = localStorage.getItem('twenty-years-view'); if (['years','months','weeks','days'].includes(v)) view = v; } catch (e) {}
+
+  /* ---------- Model ---------- */
+  function setStart(d) {
+    start = mid(d);
+    end = addMonths(start, 12 * YEARS);
+    totalDays = diffDays(start, end);
+    years = [];
+    for (let y = 0; y < YEARS; y++) {
+      const from = addMonths(start, 12 * y), to = addMonths(start, 12 * (y + 1));
+      years.push({ from, to, days: diffDays(from, to) });
+    }
+    $('startInput').value = iso(start);
+    const isToday = diffDays(start, mid(new Date())) === 0;
+    $('fromLbl').textContent = (isToday ? 'Today, ' : 'From ') + dLong.format(start);
+    $('toLbl').textContent = dLong.format(addDays(end, -1));
+    $('cWeeks').textContent = nf(countWeeks());
+    $('cDays').textContent = nf(totalDays);
+    buildFacts();
+    buildUnits();
+    tick();
+  }
+  function countWeeks() { return years.length * 52; }
+
+  function buildUnits() {
+    units = [];
+    years.forEach((yr, y) => {
+      if (view === 'years') {
+        units.push({ from: yr.from, to: yr.to, y, col: y, row: 0, label: `Year ${y + 1}` });
+      } else if (view === 'months') {
+        for (let m = 0; m < 12; m++) {
+          const from = addMonths(start, y * 12 + m), to = addMonths(start, y * 12 + m + 1);
+          units.push({ from, to, y, col: m, row: 0, label: `Month ${y * 12 + m + 1} of 240` });
+        }
+      } else if (view === 'weeks') {
+        const n = 52; // the last week of each row absorbs the year's 1–2 spare days
+        for (let k = 0; k < n; k++) {
+          const from = addDays(yr.from, 7 * k);
+          const to = k === n - 1 ? yr.to : addDays(yr.from, 7 * k + 7);
+          units.push({ from, to, y, col: k, row: 0, label: `Week ${k + 1} of year ${y + 1}` });
+        }
+      } else {
+        for (let d = 0; d < yr.days; d++) {
+          const from = addDays(yr.from, d);
+          units.push({ from, to: addDays(from, 1), y, col: Math.floor(d / 7), row: d % 7, label: `Day ${diffDays(start, from) + 1} of ${nf(totalDays)}` });
+        }
+      }
+    });
+    units.forEach((u, i) => { u.i = i; u.t = diffDays(start, u.from) / totalDays; });
+    classify();
+    const titles = { years: 'One square for every year', months: 'One square for every month', weeks: 'One square for every week', days: 'One square for every day' };
+    $('boardTitle').textContent = titles[view];
+    canvas.setAttribute('aria-label', `Grid of ${units.length} squares, ${titles[view].toLowerCase().replace('one square for every ', 'one per ')}, one row per year`);
+  }
+  function classify() {
+    let ahead = 0;
+    units.forEach(u => {
+      u.state = u.to <= today ? 'spent' : (u.from <= today ? 'now' : 'ahead');
+      if (u.state !== 'spent') ahead++;
+    });
+    $('boardNote').innerHTML = `<b>${nf(units.length)}</b> squares · <b>${nf(ahead)}</b> still ahead`;
+  }
+
+  /* ---------- Colour ---------- */
+  const hex = h => { h = h.trim().replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+  function readPalette() {
+    const cs = getComputedStyle(document.documentElement);
+    palette = {
+      ramp: ['--r1', '--r2', '--r3', '--r4'].map(k => hex(cs.getPropertyValue(k))),
+      spent: cs.getPropertyValue('--spent').trim(),
+      now: cs.getPropertyValue('--now').trim(),
+      muted: cs.getPropertyValue('--muted').trim(),
+      fg: cs.getPropertyValue('--fg').trim(),
+      surface: cs.getPropertyValue('--surface').trim(),
+      mono: cs.getPropertyValue('--mono').trim(),
+      display: cs.getPropertyValue('--display').trim()
+    };
+  }
+  function rampAt(t) {
+    const s = palette.ramp, seg = Math.min(s.length - 2, Math.floor(t * (s.length - 1)));
+    const f = t * (s.length - 1) - seg, a = s[seg], b = s[seg + 1];
+    return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * f)).join(',')})`;
+  }
+
+  /* ---------- Layout ---------- */
+  function layout(W) {
+    const narrow = W < 560, labelW = narrow ? 30 : 46, head = view === 'years' ? 0 : 20;
+    rects = []; let H = 0; const labels = []; const heads = [];
+    if (view === 'years') {
+      const cols = W >= 640 ? 10 : 5, pitch = W / cols, gap = Math.max(6, pitch * .08);
+      units.forEach(u => {
+        const c = u.y % cols, r = Math.floor(u.y / cols);
+        rects.push({ u, x: c * pitch + gap / 2, y: r * pitch + gap / 2, s: pitch - gap });
+      });
+      H = (YEARS / cols) * pitch;
+    } else if (view === 'months' || view === 'weeks') {
+      const cols = view === 'months' ? 12 : 52;
+      const pitch = Math.min((W - labelW) / cols, view === 'months' ? 44 : 40);
+      const ox = (W - labelW - cols * pitch) / 2;
+      const gap = Math.max(1, pitch * (view === 'months' ? .14 : .2));
+      units.forEach(u => rects.push({ u, x: ox + labelW + u.col * pitch, y: head + u.y * pitch, s: pitch - gap }));
+      const every = pitch < 11 ? 5 : 1;
+      years.forEach((yr, y) => { if (y % every === 0) labels.push({ x: ox + labelW - 8, y: head + y * pitch + (pitch - gap) / 2, text: yearText(yr.from, narrow) }); });
+      if (view === 'weeks') {
+        [1, 10, 20, 30, 40, 52].forEach(k => heads.push({ x: ox + labelW + (k - 1) * pitch + (pitch - gap) / 2, text: k === 1 ? (narrow ? 'Wk 1' : 'Week 1') : String(k) }));
+      } else {
+        for (let m = 0; m < 12; m++) heads.push({ x: ox + labelW + m * pitch + (pitch - gap) / 2, text: narrow ? mName.format(addMonths(start, m)).charAt(0) : mName.format(addMonths(start, m)) });
+      }
+      H = head + YEARS * pitch;
+    } else {
+      const bCols = W >= 900 ? 2 : 1, gapX = 36, perCol = YEARS / bCols;
+      const bW = (W - (bCols - 1) * gapX) / bCols, pitch = (bW - labelW) / 53, gap = Math.max(.6, pitch * .18);
+      const bH = 7 * pitch + Math.max(10, pitch * 1.4);
+      units.forEach(u => {
+        const bc = Math.floor(u.y / perCol), br = u.y % perCol;
+        rects.push({ u, x: bc * (bW + gapX) + labelW + u.col * pitch, y: head + br * bH + u.row * pitch, s: pitch - gap });
+      });
+      years.forEach((yr, y) => {
+        const bc = Math.floor(y / perCol), br = y % perCol;
+        labels.push({ x: bc * (bW + gapX) + labelW - 8, y: head + br * bH + 3.5 * pitch, text: yearText(yr.from, narrow) });
+      });
+      for (let bc = 0; bc < bCols; bc++) {
+        [1, 10, 20, 30, 40, 52].forEach(k => heads.push({ x: bc * (bW + gapX) + labelW + (k - 1) * pitch + pitch / 2, text: k === 1 ? 'Week 1' : String(k) }));
+      }
+      H = head + perCol * bH;
+    }
+    return { H: Math.ceil(H), labels, heads, narrow };
+  }
+  const yearText = (d, narrow) => narrow ? '’' + String(d.getFullYear()).slice(2) : String(d.getFullYear());
+
+  /* ---------- Draw ---------- */
+  function rr(x, y, s, r) {
+    if (s < 5 || !ctx.roundRect) { ctx.fillRect(x, y, s, s); return; }
+    ctx.beginPath(); ctx.roundRect(x, y, s, s, r); ctx.fill();
+  }
+  function draw(progress = 1) {
+    const W = Math.floor(stage.getBoundingClientRect().width);
+    if (!W) return;
+    const L = layout(W), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = W * dpr; canvas.height = L.H * dpr; canvas.style.height = L.H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, L.H);
+
+    ctx.fillStyle = palette.muted;
+    ctx.font = `500 ${L.narrow ? 9 : 11}px ${palette.mono}`;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    L.labels.forEach(l => ctx.fillText(l.text, l.x, l.y));
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    L.heads.forEach(h => ctx.fillText(h.text, h.x, 2));
+
+    const limit = Math.ceil(rects.length * progress);
+    let nowRect = null;
+    for (let i = 0; i < limit; i++) {
+      const { u, x, y, s } = rects[i], r = s * .24;
+      if (u.state === 'spent') { ctx.fillStyle = palette.spent; rr(x, y, s, r); }
+      else if (u.state === 'now') {
+        nowRect = rects[i];
+        ctx.fillStyle = rampAt(u.t); rr(x, y, s, r);
+        if (s >= 14) {
+          const f = Math.min(1, (Date.now() - u.from) / (u.to - u.from));
+          ctx.save(); ctx.beginPath(); ctx.rect(x, y, s * f, s); ctx.clip();
+          ctx.fillStyle = palette.surface; ctx.globalAlpha = .72; rr(x, y, s, r); ctx.restore();
+        }
+      } else { ctx.fillStyle = rampAt(u.t); rr(x, y, s, r); }
+
+      if (view === 'years') {
+        ctx.fillStyle = u.state === 'spent' ? palette.muted : palette.surface;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.font = `600 ${Math.max(10, s * .1)}px ${palette.mono}`;
+        ctx.globalAlpha = .85; ctx.fillText(`Y${u.y + 1}`, x + s * .1, y + s * .1); ctx.globalAlpha = 1;
+        ctx.textBaseline = 'bottom';
+        ctx.font = `800 ${Math.max(13, s * .24)}px ${palette.display}`;
+        if (u.state === 'now') ctx.fillStyle = palette.fg;
+        ctx.fillText(String(u.from.getFullYear()), x + s * .1, y + s * .92);
+      }
+    }
+    if (nowRect && progress >= 1) {
+      const pad = nowRect.s < 8 ? 2 : 0;
+      Object.assign(pulse.style, { left: nowRect.x - pad + 'px', top: nowRect.y - pad + 'px', width: nowRect.s + pad * 2 + 'px', height: nowRect.s + pad * 2 + 'px' });
+      pulse.hidden = false;
+    } else pulse.hidden = true;
+  }
+  function animateIn() {
+    if (anim) cancelAnimationFrame(anim);
+    if (reduceMotion) { draw(); return; }
+    const t0 = performance.now(), dur = 900;
+    const step = now => {
+      const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      draw(e);
+      if (p < 1) anim = requestAnimationFrame(step); else anim = null;
+    };
+    anim = requestAnimationFrame(step);
+  }
+
+  /* ---------- Tooltip ---------- */
+  function hit(ev) {
+    const b = canvas.getBoundingClientRect(), mx = ev.clientX - b.left, my = ev.clientY - b.top;
+    let best = null;
+    for (const r of rects) {
+      const slack = Math.max(1, r.s * .15);
+      if (mx >= r.x - slack && mx <= r.x + r.s + slack && my >= r.y - slack && my <= r.y + r.s + slack) { best = r; break; }
+    }
+    if (!best) { tip.hidden = true; return; }
+    const u = best.u, last = addDays(u.to, -1);
+    const range = diffDays(u.from, last) === 0 ? dLong.format(u.from)
+      : (u.from.getFullYear() === last.getFullYear() ? `${dShort.format(u.from)} – ${dLong.format(last)}` : `${dLong.format(u.from)} – ${dLong.format(last)}`);
+    let status;
+    if (u.state === 'spent') status = 'Behind you';
+    else if (u.state === 'now') status = 'You are here';
+    else {
+      const wk = Math.round((u.from - today) / WEEK), dd = diffDays(today, u.from);
+      status = view === 'days' || dd < 14 ? `In ${nf(dd)} day${dd === 1 ? '' : 's'}` : `In ${nf(wk)} weeks`;
+    }
+    tip.innerHTML = `<strong>${u.label}</strong>${range}<br><span>${status}</span>`;
+    tip.hidden = false;
+    const x = Math.min(Math.max(best.x + best.s / 2, 110), b.width - 110);
+    tip.style.left = x + 'px';
+    tip.style.top = best.y + 'px';
+  }
+  canvas.addEventListener('pointermove', hit);
+  canvas.addEventListener('pointerdown', hit);
+  canvas.addEventListener('pointerleave', ev => { if (ev.pointerType === 'mouse') tip.hidden = true; });
+
+  /* ---------- Live countdown ---------- */
+  const pad2 = n => String(n).padStart(2, '0');
+  function tick() {
+    const now = new Date();
+    if (diffDays(today, now) !== 0) { today = mid(now); classify(); buildFacts(); draw(); }
+    const from = Math.max(now.getTime(), start.getTime());
+    const ms = Math.max(0, end - from);
+    const weeks = Math.floor(ms / WEEK);
+    const rem = ms - weeks * WEEK;
+    const dd = Math.floor(rem / DAY), hh = Math.floor(rem % DAY / 36e5), mm = Math.floor(rem % 36e5 / 6e4), ss = Math.floor(rem % 6e4 / 1e3);
+    $('bigWeeks').textContent = nf(weeks);
+    $('ticker').innerHTML = `and <b>${dd}</b> day${dd === 1 ? '' : 's'} · <b>${pad2(hh)}</b>h <b>${pad2(mm)}</b>m <b>${pad2(ss)}</b>s, until ${dLong.format(end)}`;
+
+    const t = mid(new Date(from));
+    let months = (end.getFullYear() - t.getFullYear()) * 12 + (end.getMonth() - t.getMonth());
+    if (end.getDate() < t.getDate()) months--;
+    $('sYears').textContent = (ms / (365.2425 * DAY)).toFixed(2);
+    $('sMonths').textContent = nf(months);
+    $('sWeeks').textContent = nf(weeks);
+    $('sDays').textContent = nf(Math.floor(ms / DAY));
+    $('sHours').textContent = nf(Math.floor(ms / 36e5));
+
+    const frac = Math.min(1, Math.max(0, (now - start) / (end - start)));
+    $('pct').textContent = (frac * 100).toFixed(5) + '%';
+    $('barFill').style.width = (frac * 100) + '%';
+    $('bar').setAttribute('aria-valuenow', (frac * 100).toFixed(2));
+    const dayNo = Math.min(totalDays, Math.max(0, diffDays(start, now)) + 1);
+    $('pctDays').textContent = now < start ? `Starts in ${nf(diffDays(now, start))} days` : (now >= end ? 'Complete' : `Day ${nf(dayNo)} of ${nf(totalDays)}`);
+  }
+
+  /* ---------- Facts ---------- */
+  function buildFacts() {
+    const from = today > start ? today : start;
+    let sat = 0, mon = 0, leap = 0, seasons = 0, firsts = 0;
+    const days = Math.max(0, diffDays(from, end));
+    for (let i = 0; i < days; i++) {
+      const d = addDays(from, i), wd = d.getDay(), m = d.getMonth(), dt = d.getDate();
+      if (wd === 6) sat++;
+      if (wd === 1) mon++;
+      if (m === 1 && dt === 29) leap++;
+      if ((m === 2 && dt === 20) || (m === 5 && dt === 21) || (m === 8 && dt === 22) || (m === 11 && dt === 21)) seasons++;
+      if (dt === 1 && m === 0) firsts++;
+    }
+    // Full moons: mean synodic month from a reference new moon (6 Jan 2000, 18:14 UTC).
+    const SYN = 29.530588853 * DAY, ref = Date.UTC(2000, 0, 6, 18, 14) + SYN / 2;
+    const k0 = Math.ceil((from - ref) / SYN), k1 = Math.floor((end - 1 - ref) / SYN);
+    const moons = Math.max(0, k1 - k0 + 1);
+    const items = [
+      [nf(days), 'Sunrises', `Every day left between now and ${dLong.format(addDays(end, -1))}.`],
+      [nf(sat), 'Weekends', 'Counted by Saturdays. Each one is a free square.'],
+      [nf(moons), 'Full moons', 'One every 29.5 days, give or take a few hours.'],
+      [nf(seasons), 'Changes of season', 'Equinoxes and solstices you will see arrive.'],
+      [nf(firsts), 'New Year’s Days', 'Fresh calendars to hang on the wall.'],
+      [nf(leap), 'Leap days', 'The rare 29th of February, a bonus square.']
+    ];
+    $('facts').innerHTML = items.map(([n, t, d]) => `<div class="fact"><div class="n">${n}</div><div class="t">${t}</div><div class="d">${d}</div></div>`).join('');
+    $('factsSub').textContent = `Counted day by day from ${dLong.format(from)} to the final day.`;
+  }
+
+  /* ---------- Wiring ---------- */
+  function setView(v, animate = true) {
+    view = v;
+    try { localStorage.setItem('twenty-years-view', v); } catch (e) {}
+    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === v)));
+    tip.hidden = true;
+    buildUnits();
+    animate ? animateIn() : draw();
+  }
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+  $('startInput').addEventListener('change', e => {
+    const v = e.target.value; if (!v) return;
+    const [y, m, d] = v.split('-').map(Number);
+    setStart(new Date(y, m - 1, d)); saveStart(); animateIn();
+  });
+  $('resetBtn').addEventListener('click', () => { clearStart(); setStart(new Date()); animateIn(); });
+
+  const refreshTheme = () => { readPalette(); draw(); };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', refreshTheme);
+  new MutationObserver(refreshTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  let rz; new ResizeObserver(() => { cancelAnimationFrame(rz); rz = requestAnimationFrame(() => draw()); }).observe(stage);
+
+  readPalette();
+  setStart(readStart());
+  setView(view, false);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { readPalette(); draw(); });
+  setInterval(tick, 1000);
+})();
+</script>
+
+</body>
+</html>
